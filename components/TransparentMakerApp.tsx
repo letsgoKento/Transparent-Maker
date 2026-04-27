@@ -282,6 +282,7 @@ export function TransparentMakerApp() {
         <div className="grid gap-4">
           <ImageCompare originalUrl={originalUrl} resultUrl={resultUrl} />
           <ProcessingStatus status={status} progress={progress} message={statusMessage} />
+          <AuthPanel onEntitlementChange={setEntitlement} />
           <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
             <div className="flex items-start gap-3 text-sm leading-6 text-slate-300">
               <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-cyan-200" aria-hidden="true" />
@@ -318,7 +319,6 @@ export function TransparentMakerApp() {
         </div>
 
         <aside className="grid h-max gap-5">
-          <AuthPanel onEntitlementChange={setEntitlement} />
           <AdSlot label="広告スペース 300x250" />
           <section className="glass-panel rounded-lg p-4">
             <h2 className="text-sm font-semibold text-white">対応形式</h2>

@@ -2,7 +2,16 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { Crown, LockKeyhole, LogIn, LogOut, Mail, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  CheckCircle2,
+  Crown,
+  LockKeyhole,
+  LogIn,
+  LogOut,
+  Mail,
+  ShieldCheck,
+  Sparkles
+} from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export type EntitlementState = {
@@ -17,6 +26,7 @@ export type EntitlementState = {
 
 type AuthPanelProps = {
   onEntitlementChange: (state: EntitlementState) => void;
+  panelId?: string;
 };
 
 const defaultEntitlement: EntitlementState = {
@@ -29,7 +39,13 @@ const defaultEntitlement: EntitlementState = {
   subscriptionStatus: null
 };
 
-export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
+const proBenefits = [
+  "元解像度のHD PNGを保存",
+  "商品画像やSNS素材をきれいに書き出し",
+  "API側で課金状態を確認して安全に提供"
+];
+
+export function AuthPanel({ onEntitlementChange, panelId = "plan-panel" }: AuthPanelProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const priceLabel = process.env.NEXT_PUBLIC_PRO_PRICE_LABEL ?? "980 JPY / month";
   const [email, setEmail] = useState("");
@@ -176,7 +192,7 @@ export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
 
   if (!supabase) {
     return (
-      <section id="plan-panel" className="glass-panel rounded-lg p-4">
+      <section id={panelId} className="glass-panel rounded-lg p-4">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 h-5 w-5 text-cyan-200" aria-hidden="true" />
           <div>
@@ -191,7 +207,7 @@ export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
   }
 
   return (
-    <section id="plan-panel" className="glass-panel rounded-lg p-4">
+    <section id={panelId} className="glass-panel rounded-lg p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-white">Plan</h2>
@@ -227,6 +243,14 @@ export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
             </p>
           </div>
         </div>
+        <ul className="mt-4 grid gap-2">
+          {proBenefits.map((benefit) => (
+            <li key={benefit} className="flex items-start gap-2 text-xs leading-5 text-slate-200">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-cyan-200" aria-hidden="true" />
+              <span>{benefit}</span>
+            </li>
+          ))}
+        </ul>
       </div>
 
       {session ? (
@@ -251,6 +275,12 @@ export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
         </div>
       ) : (
         <form onSubmit={handleLogin} className="mt-4 grid gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-white">Login to upgrade</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-400">
+              メールアドレスでログイン後、Upgrade to Proから月額サブスクリプションを開始できます。
+            </p>
+          </div>
           <label className="sr-only" htmlFor="email">
             メールアドレス
           </label>
@@ -272,7 +302,7 @@ export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-wait disabled:bg-slate-700 disabled:text-slate-400"
           >
             <LogIn className="h-4 w-4" aria-hidden="true" />
-            Login
+            Login / Send Magic Link
           </button>
         </form>
       )}
