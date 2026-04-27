@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
     if (tier === "free") {
       const freePngBuffer = await resizeToFreePng(pngBuffer);
-      return new Response(freePngBuffer, {
+      return new Response(new Uint8Array(freePngBuffer), {
         headers: {
           "Content-Type": "image/png",
           "Cache-Control": "no-store",

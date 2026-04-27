@@ -23,12 +23,13 @@ npm run dev
 
 ## 使用技術
 
-- Next.js App Router
+- Next.js 15 App Router
 - React
 - TypeScript
 - Tailwind CSS
 - lucide-react
 - @imgly/background-removal
+- onnxruntime-web
 - Supabase Auth / Database / Storage
 - Stripe Checkout / Webhook
 - sharp
