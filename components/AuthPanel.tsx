@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { Crown, LogIn, LogOut, Mail, ShieldCheck } from "lucide-react";
+import { Crown, LockKeyhole, LogIn, LogOut, Mail, ShieldCheck, Sparkles } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export type EntitlementState = {
@@ -11,6 +11,8 @@ export type EntitlementState = {
   isPaid: boolean;
   accessToken: string | null;
   email: string | null;
+  plan: "free" | "pro";
+  subscriptionStatus: string | null;
 };
 
 type AuthPanelProps = {
@@ -22,11 +24,14 @@ const defaultEntitlement: EntitlementState = {
   isSignedIn: false,
   isPaid: false,
   accessToken: null,
-  email: null
+  email: null,
+  plan: "free",
+  subscriptionStatus: null
 };
 
 export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const priceLabel = process.env.NEXT_PUBLIC_PRO_PRICE_LABEL ?? "980 JPY / month";
   const [email, setEmail] = useState("");
   const [session, setSession] = useState<Session | null>(null);
   const [isPaid, setIsPaid] = useState(false);
@@ -67,7 +72,9 @@ export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
           isSignedIn: false,
           isPaid: false,
           accessToken: null,
-          email: null
+          email: null,
+          plan: "free",
+          subscriptionStatus: null
         });
         return;
       }
@@ -78,7 +85,13 @@ export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
             Authorization: `Bearer ${session.access_token}`
           }
         });
-        const data = (await response.json()) as { isPaid?: boolean; email?: string; message?: string };
+        const data = (await response.json()) as {
+          isPaid?: boolean;
+          email?: string;
+          message?: string;
+          plan?: "free" | "pro";
+          subscriptionStatus?: string | null;
+        };
         const paid = response.ok ? Boolean(data.isPaid) : false;
         setIsPaid(paid);
         onEntitlementChange({
@@ -86,7 +99,9 @@ export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
           isSignedIn: true,
           isPaid: paid,
           accessToken: session.access_token,
-          email: data.email ?? session.user.email ?? null
+          email: data.email ?? session.user.email ?? null,
+          plan: data.plan ?? (paid ? "pro" : "free"),
+          subscriptionStatus: data.subscriptionStatus ?? null
         });
       } catch {
         setIsPaid(false);
@@ -95,7 +110,9 @@ export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
           isSignedIn: true,
           isPaid: false,
           accessToken: session.access_token,
-          email: session.user.email ?? null
+          email: session.user.email ?? null,
+          plan: "free",
+          subscriptionStatus: null
         });
       }
     }
@@ -140,7 +157,7 @@ export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
     setMessage(null);
 
     try {
-      const response = await fetch("/api/stripe/checkout", {
+      const response = await fetch("/api/create-checkout-session", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session.access_token}`
@@ -159,13 +176,13 @@ export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
 
   if (!supabase) {
     return (
-      <section className="glass-panel rounded-lg p-4">
+      <section id="plan-panel" className="glass-panel rounded-lg p-4">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 h-5 w-5 text-cyan-200" aria-hidden="true" />
           <div>
             <h2 className="text-sm font-semibold text-white">Plan</h2>
             <p className="mt-1 text-sm leading-6 text-slate-300">
-              環境変数を設定すると、Supabase AuthとStripe決済によるHD Downloadが有効になります。
+              環境変数を設定すると、Supabase AuthとStripe CheckoutによるProプランが有効になります。
             </p>
           </div>
         </div>
@@ -174,7 +191,7 @@ export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
   }
 
   return (
-    <section className="glass-panel rounded-lg p-4">
+    <section id="plan-panel" className="glass-panel rounded-lg p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-white">Plan</h2>
@@ -193,6 +210,25 @@ export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
         </span>
       </div>
 
+      <div className="mt-4 rounded-lg border border-cyan-300/30 bg-cyan-300/10 p-4">
+        <div className="flex items-start gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-cyan-300 text-slate-950">
+            {isPaid ? (
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <LockKeyhole className="h-4 w-4" aria-hidden="true" />
+            )}
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-white">Pro Plan</h3>
+            <p className="mt-1 text-lg font-bold text-cyan-100">{priceLabel}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-300">
+              HD PNG is available with Pro. 元解像度の透過PNGをAPI側の課金確認後に作成します。
+            </p>
+          </div>
+        </div>
+      </div>
+
       {session ? (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <button
@@ -202,7 +238,7 @@ export function AuthPanel({ onEntitlementChange }: AuthPanelProps) {
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
           >
             <Crown className="h-4 w-4" aria-hidden="true" />
-            {isPaid ? "HD Active" : "Upgrade"}
+            {isPaid ? "HD Active" : "Upgrade to Pro"}
           </button>
           <button
             type="button"

@@ -13,10 +13,10 @@ export function ImageCompare({ originalUrl, resultUrl }: ImageCompareProps) {
 
   if (!originalUrl) {
     return (
-      <section className="glass-panel grid min-h-80 place-items-center rounded-lg p-6 text-center">
+      <section className="glass-panel preview-stage grid place-items-center rounded-lg p-6 text-center">
         <div>
           <ImageIcon className="mx-auto h-10 w-10 text-slate-500" aria-hidden="true" />
-          <p className="mt-3 text-sm text-slate-400">選択した画像のプレビューがここに表示されます。</p>
+          <p className="mt-3 text-sm text-slate-400">Before / After プレビューがここに表示されます。</p>
         </div>
       </section>
     );
@@ -50,7 +50,7 @@ export function ImageCompare({ originalUrl, resultUrl }: ImageCompareProps) {
         </button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
         <PreviewPane
           label="Before"
           imageUrl={originalUrl}
@@ -86,13 +86,13 @@ function PreviewPane({
         </span>
       </div>
       <div
-        className={`grid aspect-[4/3] place-items-center overflow-hidden rounded-lg border border-slate-700/70 ${
+        className={`preview-stage grid place-items-center overflow-hidden rounded-lg border border-slate-700/70 p-2 ${
           checkered ? "checkered" : "bg-slate-950/70"
         }`}
       >
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt={`${label} preview`} className="max-h-full max-w-full object-contain" />
+          <img src={imageUrl} alt={`${label} preview`} className="preview-image" />
         ) : (
           <p className="px-4 text-center text-sm text-slate-400">処理後の画像がここに表示されます。</p>
         )}

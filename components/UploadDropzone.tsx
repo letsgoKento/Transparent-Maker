@@ -46,16 +46,16 @@ export function UploadDropzone({ file, onFileSelect, onInvalidFile }: UploadDrop
         onDragOver={(event) => event.preventDefault()}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        className={`flex min-h-64 w-full flex-col items-center justify-center rounded-lg border border-dashed px-5 py-9 text-center transition ${
+        className={`flex min-h-40 w-full flex-col items-center justify-center rounded-lg border border-dashed px-4 py-6 text-center transition sm:min-h-56 sm:px-5 sm:py-8 ${
           isDragging
             ? "border-cyan-200 bg-cyan-300/10 shadow-glow"
             : "border-cyan-200/40 bg-white/[0.03] hover:border-cyan-200/75 hover:bg-cyan-300/10"
         }`}
       >
-        <span className="mb-5 grid h-16 w-16 place-items-center rounded-lg border border-cyan-300/30 bg-cyan-300/10 text-cyan-100">
-          <UploadCloud className="h-8 w-8" aria-hidden="true" />
+        <span className="mb-4 grid h-12 w-12 place-items-center rounded-lg border border-cyan-300/30 bg-cyan-300/10 text-cyan-100 sm:h-16 sm:w-16">
+          <UploadCloud className="h-6 w-6 sm:h-8 sm:w-8" aria-hidden="true" />
         </span>
-        <span className="text-xl font-semibold text-white">画像をドラッグ&ドロップ</span>
+        <span className="text-lg font-semibold text-white sm:text-xl">画像をドラッグ&ドロップ</span>
         <span className="mt-2 text-sm leading-6 text-slate-300">
           クリックしてファイル選択もできます。PNG / JPG / JPEG / WEBP に対応。
         </span>

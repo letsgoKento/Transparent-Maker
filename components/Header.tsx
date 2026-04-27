@@ -3,7 +3,7 @@ import { Sparkles } from "lucide-react";
 
 export function Header() {
   return (
-    <header className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 pb-6 pt-8 sm:px-6 lg:px-8">
+    <header className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pb-4 pt-6 sm:px-6 lg:px-8">
       <nav className="flex items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-3 text-white">
           <span className="grid h-10 w-10 place-items-center rounded-lg border border-cyan-300/30 bg-cyan-300/10 shadow-glow">
@@ -25,10 +25,10 @@ export function Header() {
       </nav>
       <div className="max-w-3xl">
         <p className="mb-3 text-sm font-medium text-cyan-200">AI background remover</p>
-        <h1 className="text-3xl font-semibold tracking-normal text-white sm:text-5xl">
+        <h1 className="text-2xl font-semibold tracking-normal text-white sm:text-4xl">
           画像を置くだけで、背景透過PNGをすばやく作成
         </h1>
-        <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
           人物・商品・イラストの背景を自動削除。無料版は約1024px、HD版はログインと課金状態を確認して元解像度で提供します。
         </p>
       </div>

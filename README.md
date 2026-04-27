@@ -1,46 +1,126 @@
 # Transparent Maker
 
-画像を置くだけで背景透過PNGを作成できる、ダークテーマのWebアプリです。
+画像をアップロードすると背景を削除し、透過PNGとしてダウンロードできるNext.js App Router製Webアプリです。
 
-無料ユーザーはブラウザ上で長辺約1024pxの透過PNGを作成し、有料ユーザーはAPI側でログイン状態と課金状態を確認してから元解像度PNGをダウンロードできます。
-
-## セットアップ方法
-
-```bash
-npm install
-cp .env.example .env.local
-```
-
-`.env.local` に Supabase / Stripe / 背景削除ワーカーの値を設定します。
-
-## 起動方法
-
-```bash
-npm run dev
-```
-
-ブラウザで `http://localhost:3000` を開きます。
+無料ユーザーは最大1024pxのPNGのみ、有料ユーザーはStripe CheckoutでProにアップグレード後、API側の課金確認を通して元解像度HD PNGを取得できます。
 
 ## 使用技術
 
 - Next.js 15 App Router
-- React
 - TypeScript
 - Tailwind CSS
-- lucide-react
+- Supabase Auth
+- Supabase Database
+- Stripe Checkout
+- Stripe Webhook
+- Vercel Environment Variables
 - @imgly/background-removal
 - onnxruntime-web 1.21.0
-- Supabase Auth / Database / Storage
-- Stripe Checkout / Webhook
 - sharp
 
-## 背景削除処理の仕組み
+## ローカル起動方法
 
-無料版は初期設定では `@imgly/background-removal` を使い、ブラウザ上で画像を長辺約1024pxに縮小してから背景削除します。無料処理では画像をサーバーへ保存しません。
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
+```
 
-本番で無料版もサーバー側制御に寄せたい場合は `NEXT_PUBLIC_SERVER_REMOVAL_ENABLED=true` にします。この場合、`/api/remove-background` が無料ユーザーへ縮小済みPNGだけを返します。
+`http://localhost:3000` を開きます。
 
-HD版は `/api/remove-background` に元画像を送り、API側で有料ユーザーか確認します。確認後、`BACKGROUND_REMOVAL_API_URL` に設定した rembg ワーカーなどへ画像を渡し、返ってきたPNGをSupabaseの非公開Storageへ保存します。`/api/hd-download` は再度有料判定してからファイルを返すため、高解像度画像のURLを直接公開しません。
+## 環境変数
+
+```txt
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+NEXT_PUBLIC_STRIPE_PRICE_ID=
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_SERVER_REMOVAL_ENABLED=false
+BACKGROUND_REMOVAL_API_URL=
+BACKGROUND_REMOVAL_API_KEY=
+```
+
+`NEXT_PUBLIC_PRO_PRICE_LABEL` は任意です。UI上のPro料金表示を変えたい場合だけ設定してください。
+
+## Supabaseテーブル作成方法
+
+Supabase SQL Editorで [supabase/users_profile.sql](supabase/users_profile.sql) を実行します。
+
+主なカラム:
+
+- `id`: `auth.users.id` と紐付くUUID
+- `email`: ユーザーのメールアドレス
+- `stripe_customer_id`: Stripe Customer ID
+- `stripe_subscription_id`: Stripe Subscription ID
+- `plan`: `free` / `pro`
+- `subscription_status`: Stripe subscription status
+- `created_at`: 作成日時
+- `updated_at`: 更新日時
+
+アプリはAPI側で `users_profile.plan === 'pro'` を確認してからHD PNGを返します。フロントエンドだけで有料判定しません。
+
+## Stripeの商品作成方法
+
+1. Stripe DashboardでProductsを開きます。
+2. `Transparent Maker Pro` のような商品を作成します。
+3. Pricingで月額サブスクリプション価格を作成します。
+4. 作成したPriceのIDをコピーします。`price_...` で始まる値です。
+5. Vercelと `.env.local` の `NEXT_PUBLIC_STRIPE_PRICE_ID` に設定します。
+
+## Webhook設定方法
+
+Stripe DashboardのDevelopers > WebhooksでEndpointを追加します。
+
+Endpoint URL:
+
+```txt
+https://your-domain.com/api/stripe/webhook
+```
+
+購読イベント:
+
+- `checkout.session.completed`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+
+Webhook signing secretをコピーし、`STRIPE_WEBHOOK_SECRET` に設定します。
+
+Webhookでは署名検証を行い、決済完了時に `users_profile.plan` を `pro` に更新します。サブスクリプション更新・解約時も `subscription_status` と `plan` を同期します。
+
+## API
+
+- `POST /api/create-checkout-session`
+  - ログイン中ユーザーを確認
+  - Stripe Customerを作成または取得
+  - Stripe Checkout Sessionを作成
+  - `/success` / `/cancel` をリダイレクト先に設定
+  - Checkout URLを返却
+
+- `POST /api/stripe/webhook`
+  - Stripe署名を検証
+  - `checkout.session.completed` でPro化
+  - `customer.subscription.updated` で状態同期
+  - `customer.subscription.deleted` でfreeへ戻す
+
+- `POST /api/download/free`
+  - 処理済み画像を受け取り、最大1024pxのPNGに縮小して返却
+
+- `POST /api/download/hd`
+  - ログイン確認
+  - Supabaseで `plan = pro` を確認
+  - Proなら元解像度の背景透過PNGをAPIレスポンスとして返却
+  - Freeなら403を返却
+
+HD画像URLは直接公開しません。必ずAPI側で課金状態を確認します。
+
+## 背景削除処理
+
+無料処理は初期設定ではブラウザ上の `@imgly/background-removal` で行います。Free Download時は `/api/download/free` で最大1024pxに整えます。
+
+HD Downloadは `/api/download/hd` で有料判定後、`BACKGROUND_REMOVAL_API_URL` に設定したrembgワーカーなどへ画像を送り、元解像度PNGを返します。
 
 背景削除ワーカーの想定インターフェース:
 
@@ -50,66 +130,20 @@ field: image
 response: image/png
 ```
 
-## Supabase設定
+## Vercelデプロイ方法
 
-`profiles` テーブル例:
-
-```sql
-create table public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  email text,
-  plan text not null default 'free',
-  is_paid boolean not null default false,
-  stripe_customer_id text,
-  updated_at timestamptz not null default now()
-);
-
-alter table public.profiles enable row level security;
-
-create policy "Users can read own profile"
-on public.profiles
-for select
-using (auth.uid() = id);
-```
-
-Storageでは `transparent-results` というprivate bucketを作成してください。名前を変える場合は `SUPABASE_HD_BUCKET` を変更します。
-
-## Stripe設定
-
-1. Stripeでサブスクリプション商品とPriceを作成します。
-2. `STRIPE_PRICE_ID` にPrice IDを設定します。
-3. Webhook URLに `https://your-domain.com/api/stripe/webhook` を登録します。
-4. `checkout.session.completed`、`customer.subscription.updated`、`customer.subscription.deleted` を購読します。
-5. Webhook signing secretを `STRIPE_WEBHOOK_SECRET` に設定します。
-
-決済完了後、Webhookが `profiles.is_paid` と `profiles.plan` を更新します。
-
-## Vercelにデプロイする手順
-
-1. このリポジトリをGitHubへpushします。
+1. GitHubにpushします。
 2. VercelでNew Projectとしてインポートします。
-3. Environment Variablesに `.env.example` と同じキーを登録します。
-4. Supabase Storage bucketをprivateで作成します。
-5. 背景削除ワーカーを別サービスに用意し、`BACKGROUND_REMOVAL_API_URL` を設定します。
-6. Stripe WebhookのURLをVercelの本番URLに更新します。
+3. Environment Variablesに上記の値を設定します。
+4. Supabase SQL Editorで `supabase/users_profile.sql` を実行します。
+5. Stripe Webhook URLを本番URLに設定します。
+6. `BACKGROUND_REMOVAL_API_URL` に背景削除ワーカーのURLを設定します。
 7. Deployします。
 
-Vercel Functionsで大きな画像を扱う場合は、アップロードサイズと処理時間の制限に注意してください。高負荷なrembg処理は専用ワーカーに逃がす構成を推奨しています。
+Vercel Functionsで重い画像処理を長時間実行すると制限に当たることがあります。rembgなどの重い処理は専用ワーカーへ分離する構成を推奨します。
 
-## 広告スペースを追加する場所
+## 広告スペース
 
-広告用コンテナは `components/AdSlot.tsx` です。配置箇所は `components/TransparentMakerApp.tsx` にあります。
+広告用コンテナは `components/AdSlot.tsx` です。配置は `components/TransparentMakerApp.tsx` にあります。
 
-コメント `AdSense slot` の位置を、Google AdSense承認後に `<ins className="adsbygoogle" />` へ置き換えてください。
-
-## 主なファイル
-
-- `components/TransparentMakerApp.tsx`: 画面全体と処理フロー
-- `components/UploadDropzone.tsx`: ドラッグ&ドロップアップロード
-- `components/ImageCompare.tsx`: Before / After 比較
-- `components/DownloadActions.tsx`: Free / HD ダウンロード
-- `components/AuthPanel.tsx`: SupabaseログインとUpgrade導線
-- `lib/backgroundRemoval.ts`: 無料版のブラウザ背景削除
-- `app/api/remove-background/route.ts`: HD背景削除ジョブ作成
-- `app/api/hd-download/route.ts`: 有料判定付きHDダウンロード
-- `app/api/stripe/*`: Stripe Checkout / Webhook
+Google AdSense承認後、`AdSense slot` コメントの位置を広告タグへ置き換えてください。

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { getSupabaseAdmin } from "@/lib/supabase/server";
+import {
+  getProfileBySubscriptionId,
+  upsertUserProfile
+} from "@/lib/server/entitlements";
 
 export const runtime = "nodejs";
 
@@ -12,42 +15,30 @@ function getStripe() {
   return new Stripe(secretKey);
 }
 
-async function updateProfilePlan(params: {
-  userId: string;
-  isPaid: boolean;
-  plan: "free" | "paid";
-  stripeCustomerId?: string | null;
-}) {
-  const supabase = getSupabaseAdmin();
-  const row: Record<string, string | boolean | null> = {
-    id: params.userId,
-    is_paid: params.isPaid,
-    plan: params.plan
-  };
-
-  if (params.stripeCustomerId !== undefined) {
-    row.stripe_customer_id = params.stripeCustomerId;
-  }
-
-  const { error } = await supabase.from("profiles").upsert(row, {
-    onConflict: "id"
-  });
-
-  if (error) {
-    throw new Error(error.message);
-  }
+function subscriptionPlan(status: Stripe.Subscription.Status): "free" | "pro" {
+  return ["active", "trialing"].includes(status) ? "pro" : "free";
 }
 
 async function syncSubscription(subscription: Stripe.Subscription) {
-  const userId = subscription.metadata?.userId;
+  let userId = subscription.metadata?.userId ?? null;
+
+  if (!userId) {
+    const profile = await getProfileBySubscriptionId(subscription.id);
+    userId = profile?.id ?? null;
+  }
+
   if (!userId) return;
 
-  const active = ["active", "trialing"].includes(subscription.status);
-  await updateProfilePlan({
-    userId,
-    isPaid: active,
-    plan: active ? "paid" : "free",
-    stripeCustomerId: typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id
+  const customerId =
+    typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
+  const plan = subscriptionPlan(subscription.status);
+
+  await upsertUserProfile({
+    id: userId,
+    stripe_customer_id: customerId,
+    stripe_subscription_id: subscription.id,
+    plan,
+    subscription_status: subscription.status
   });
 }
 
@@ -67,7 +58,10 @@ export async function POST(request: Request) {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (error) {
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Webhook signature verification failed." },
+      {
+        message:
+          error instanceof Error ? error.message : "Webhook signature verification failed."
+      },
       { status: 400 }
     );
   }
@@ -76,19 +70,50 @@ export async function POST(request: Request) {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.userId ?? session.client_reference_id;
+      const subscriptionId =
+        typeof session.subscription === "string"
+          ? session.subscription
+          : session.subscription?.id ?? null;
+      const customerId =
+        typeof session.customer === "string" ? session.customer : session.customer?.id ?? null;
 
       if (userId) {
-        await updateProfilePlan({
-          userId,
-          isPaid: true,
-          plan: "paid",
-          stripeCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id ?? null
+        await upsertUserProfile({
+          id: userId,
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscriptionId,
+          plan: "pro",
+          subscription_status: "active"
         });
       }
     }
 
-    if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+    if (event.type === "customer.subscription.updated") {
       await syncSubscription(event.data.object as Stripe.Subscription);
+    }
+
+    if (event.type === "customer.subscription.deleted") {
+      const subscription = event.data.object as Stripe.Subscription;
+      let userId = subscription.metadata?.userId ?? null;
+
+      if (!userId) {
+        const profile = await getProfileBySubscriptionId(subscription.id);
+        userId = profile?.id ?? null;
+      }
+
+      if (userId) {
+        const customerId =
+          typeof subscription.customer === "string"
+            ? subscription.customer
+            : subscription.customer.id;
+        await upsertUserProfile({
+          id: userId,
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscription.id,
+          plan: "free",
+          subscription_status: subscription.status
+        });
+      }
     }
 
     return NextResponse.json({ received: true });

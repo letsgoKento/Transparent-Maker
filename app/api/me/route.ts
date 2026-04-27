@@ -12,6 +12,8 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     email: entitlement.email,
-    isPaid: entitlement.isPaid
+    isPaid: entitlement.isPaid,
+    plan: entitlement.profile.plan,
+    subscriptionStatus: entitlement.profile.subscription_status
   });
 }

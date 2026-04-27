@@ -27,7 +27,9 @@ const initialEntitlement: EntitlementState = {
   isSignedIn: false,
   isPaid: false,
   accessToken: null,
-  email: null
+  email: null,
+  plan: "free",
+  subscriptionStatus: null
 };
 
 export function TransparentMakerApp() {
@@ -131,9 +133,79 @@ export function TransparentMakerApp() {
     }
   }, [entitlement.accessToken, file, revokeResult]);
 
-  const handleFreeDownload = () => {
+  const focusBillingPanel = () => {
+    document.getElementById("plan-panel")?.scrollIntoView({
+      behavior: "smooth",
+      block: "center"
+    });
+  };
+
+  const startCheckout = async () => {
+    if (!entitlement.accessToken) {
+      setStatus("error");
+      setStatusMessage("HD Downloadにはログインが必要です。Plan欄からログインしてください。");
+      focusBillingPanel();
+      return;
+    }
+
+    setIsHdLoading(true);
+    setStatus("processing");
+    setProgress(18);
+    setStatusMessage("HD PNG is available with Pro. Stripe Checkoutを準備しています。");
+
+    try {
+      const response = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${entitlement.accessToken}`
+        }
+      });
+      const data = (await response.json()) as { url?: string; message?: string };
+
+      if (!response.ok || !data.url) {
+        throw new Error(data.message ?? "Stripe Checkoutを開始できませんでした。");
+      }
+
+      window.location.href = data.url;
+    } catch (error) {
+      setStatus("error");
+      setProgress(0);
+      setStatusMessage(error instanceof Error ? error.message : "Checkoutの開始に失敗しました。");
+      setIsHdLoading(false);
+    }
+  };
+
+  const handleFreeDownload = async () => {
     if (!resultBlob) return;
-    downloadBlob(resultBlob, transparentFileName);
+
+    setStatus("processing");
+    setProgress(88);
+    setStatusMessage("無料版PNGを1024px以内に整えています。");
+
+    try {
+      const formData = new FormData();
+      formData.append("image", resultBlob, transparentFileName);
+
+      const response = await fetch("/api/download/free", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(data?.message ?? "無料PNGの作成に失敗しました。");
+      }
+
+      const blob = await response.blob();
+      downloadBlob(blob, transparentFileName);
+      setStatus("done");
+      setProgress(100);
+      setStatusMessage("無料版PNGをダウンロードしました。");
+    } catch (error) {
+      setStatus("error");
+      setProgress(0);
+      setStatusMessage(error instanceof Error ? error.message : "Free Downloadに失敗しました。");
+    }
   };
 
   const handleChooseAnother = () => {
@@ -155,12 +227,14 @@ export function TransparentMakerApp() {
     if (!entitlement.isSignedIn || !entitlement.accessToken) {
       setStatus("error");
       setStatusMessage("HD Downloadにはログインが必要です。Plan欄からログインしてください。");
+      focusBillingPanel();
       return;
     }
 
     if (!entitlement.isPaid) {
       setStatus("error");
-      setStatusMessage("元解像度ダウンロードは有料プラン限定です。Upgradeから決済を開始できます。");
+      setStatusMessage("HD PNG is available with Pro");
+      await startCheckout();
       return;
     }
 
@@ -172,33 +246,15 @@ export function TransparentMakerApp() {
     try {
       const formData = new FormData();
       formData.append("image", file);
-      formData.append("tier", "hd");
+      formData.append("fileName", buildTransparentFileName(file.name, "hd-transparent"));
 
-      const processResponse = await fetch("/api/remove-background", {
+      const downloadResponse = await fetch("/api/download/hd", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${entitlement.accessToken}`
         },
         body: formData
       });
-      const processData = (await processResponse.json()) as { jobId?: string; message?: string };
-      if (!processResponse.ok || !processData.jobId) {
-        throw new Error(processData.message ?? "HD処理を開始できませんでした。");
-      }
-
-      setProgress(78);
-      setStatusMessage("権限を確認してHD PNGを取得しています。");
-
-      const downloadResponse = await fetch(
-        `/api/hd-download?jobId=${encodeURIComponent(processData.jobId)}&fileName=${encodeURIComponent(
-          transparentFileName
-        )}`,
-        {
-          headers: {
-            Authorization: `Bearer ${entitlement.accessToken}`
-          }
-        }
-      );
 
       if (!downloadResponse.ok) {
         const data = (await downloadResponse.json().catch(() => null)) as { message?: string } | null;
@@ -222,17 +278,10 @@ export function TransparentMakerApp() {
   return (
     <main>
       <Header />
-      <section className="mx-auto grid w-full max-w-6xl gap-5 px-4 pb-10 sm:px-6 lg:grid-cols-[1fr_320px] lg:px-8">
-        <div className="grid gap-5">
-          <UploadDropzone
-            file={file}
-            onFileSelect={handleFileSelect}
-            onInvalidFile={(message) => {
-              setStatus("error");
-              setStatusMessage(message);
-            }}
-          />
-
+      <section className="mx-auto grid w-full max-w-6xl gap-4 px-4 pb-10 sm:px-6 lg:grid-cols-[1fr_320px] lg:px-8">
+        <div className="grid gap-4">
+          <ImageCompare originalUrl={originalUrl} resultUrl={resultUrl} />
+          <ProcessingStatus status={status} progress={progress} message={statusMessage} />
           <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
             <div className="flex items-start gap-3 text-sm leading-6 text-slate-300">
               <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-cyan-200" aria-hidden="true" />
@@ -249,8 +298,6 @@ export function TransparentMakerApp() {
             </button>
           </div>
 
-          <ProcessingStatus status={status} progress={progress} message={statusMessage} />
-          <ImageCompare originalUrl={originalUrl} resultUrl={resultUrl} />
           <DownloadActions
             canDownload={Boolean(resultBlob)}
             isPaid={entitlement.isPaid}
@@ -259,6 +306,14 @@ export function TransparentMakerApp() {
             onHdDownload={handleHdDownload}
             onReprocess={handleProcess}
             onChooseAnother={handleChooseAnother}
+          />
+          <UploadDropzone
+            file={file}
+            onFileSelect={handleFileSelect}
+            onInvalidFile={(message) => {
+              setStatus("error");
+              setStatusMessage(message);
+            }}
           />
         </div>
 
@@ -269,7 +324,7 @@ export function TransparentMakerApp() {
             <h2 className="text-sm font-semibold text-white">対応形式</h2>
             <p className="mt-2 text-sm leading-6 text-slate-300">PNG / JPG / JPEG / WEBP</p>
             <p className="mt-3 text-xs leading-5 text-slate-400">
-              アップロードした画像は無料処理ではサーバーに保存しません。HD版は権限確認後に非公開ストレージへ保存します。
+              アップロードした画像は無料処理ではサーバーに保存しません。HD版は権限確認後にAPIから直接返します。
             </p>
           </section>
         </aside>
