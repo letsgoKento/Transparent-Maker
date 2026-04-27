@@ -18,7 +18,7 @@ export function UploadDropzone({ file, onFileSelect, onInvalidFile }: UploadDrop
     onFileSelect(selectedFile);
   };
 
-  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+  const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
     event.preventDefault();
     setIsDragging(false);
     const selectedFile = event.dataTransfer.files?.[0];
