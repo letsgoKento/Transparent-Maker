@@ -2,12 +2,54 @@ export const SUPPORTED_MIME_TYPES = ["image/png", "image/jpeg", "image/webp"];
 export const FREE_MAX_DIMENSION = 1024;
 
 type ProgressHandler = (progress: number, label: string) => void;
+type BackgroundRemovalConfig = {
+  progress?: (...args: unknown[]) => void;
+  [key: string]: unknown;
+};
+type RemoveBackgroundFunction = (
+  image: Blob,
+  config?: BackgroundRemovalConfig
+) => Promise<Blob | Response>;
 type DrawableImage = {
   width: number;
   height: number;
   draw: (context: CanvasRenderingContext2D, width: number, height: number) => void;
   close: () => void;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function resolveRemoveBackground(moduleValue: unknown): RemoveBackgroundFunction | null {
+  if (typeof moduleValue === "function") {
+    return moduleValue as RemoveBackgroundFunction;
+  }
+
+  if (!isRecord(moduleValue)) {
+    return null;
+  }
+
+  if (typeof moduleValue.removeBackground === "function") {
+    return moduleValue.removeBackground as RemoveBackgroundFunction;
+  }
+
+  if (typeof moduleValue.default === "function") {
+    return moduleValue.default as RemoveBackgroundFunction;
+  }
+
+  if (isRecord(moduleValue.default)) {
+    if (typeof moduleValue.default.removeBackground === "function") {
+      return moduleValue.default.removeBackground as RemoveBackgroundFunction;
+    }
+
+    if (typeof moduleValue.default.default === "function") {
+      return moduleValue.default.default as RemoveBackgroundFunction;
+    }
+  }
+
+  return null;
+}
 
 export function isSupportedImage(file: File) {
   return SUPPORTED_MIME_TYPES.includes(file.type);
@@ -115,15 +157,8 @@ export async function removeBackgroundInBrowser(
   const resizedInput = await resizeImageToMaxDimension(file, maxDimension);
 
   onProgress(18, "AIモデルを準備中");
-  const backgroundModule = (await import("@imgly/background-removal")) as {
-    removeBackground?: (
-      image: Blob,
-      config?: Record<string, unknown>
-    ) => Promise<Blob | Response>;
-    default?: (image: Blob, config?: Record<string, unknown>) => Promise<Blob | Response>;
-  };
-
-  const removeBackground = backgroundModule.removeBackground ?? backgroundModule.default;
+  const backgroundModule = await import("@imgly/background-removal");
+  const removeBackground = resolveRemoveBackground(backgroundModule);
   if (!removeBackground) {
     throw new Error("背景削除ライブラリを読み込めませんでした。");
   }
