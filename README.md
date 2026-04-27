@@ -29,7 +29,7 @@ npm run dev
 - Tailwind CSS
 - lucide-react
 - @imgly/background-removal
-- onnxruntime-web
+- onnxruntime-web 1.21.0
 - Supabase Auth / Database / Storage
 - Stripe Checkout / Webhook
 - sharp
