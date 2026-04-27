@@ -20,7 +20,7 @@ function subscriptionPlan(status: Stripe.Subscription.Status): "free" | "pro" {
 }
 
 async function syncSubscription(subscription: Stripe.Subscription) {
-  let userId = subscription.metadata?.userId ?? null;
+  let userId: string | null = subscription.metadata?.userId ?? null;
 
   if (!userId) {
     const profile = await getProfileBySubscriptionId(subscription.id);
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
 
     if (event.type === "customer.subscription.deleted") {
       const subscription = event.data.object as Stripe.Subscription;
-      let userId = subscription.metadata?.userId ?? null;
+      let userId: string | null = subscription.metadata?.userId ?? null;
 
       if (!userId) {
         const profile = await getProfileBySubscriptionId(subscription.id);
