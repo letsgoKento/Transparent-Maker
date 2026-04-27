@@ -129,7 +129,7 @@ export function TransparentMakerApp() {
           : "背景削除に失敗しました。時間を置いてもう一度お試しください。"
       );
     }
-  }, [file, revokeResult]);
+  }, [entitlement.accessToken, file, revokeResult]);
 
   const handleFreeDownload = () => {
     if (!resultBlob) return;

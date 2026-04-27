@@ -1,25 +1,26 @@
+import Link from "next/link";
 import { Sparkles } from "lucide-react";
 
 export function Header() {
   return (
     <header className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 pb-6 pt-8 sm:px-6 lg:px-8">
       <nav className="flex items-center justify-between gap-4">
-        <a href="/" className="flex items-center gap-3 text-white">
+        <Link href="/" className="flex items-center gap-3 text-white">
           <span className="grid h-10 w-10 place-items-center rounded-lg border border-cyan-300/30 bg-cyan-300/10 shadow-glow">
             <Sparkles className="h-5 w-5 text-cyan-200" aria-hidden="true" />
           </span>
           <span className="text-lg font-semibold tracking-normal">Transparent Maker</span>
-        </a>
+        </Link>
         <div className="hidden items-center gap-5 text-sm text-slate-300 sm:flex">
-          <a className="transition hover:text-cyan-200" href="#how-to-use">
+          <Link className="transition hover:text-cyan-200" href="#how-to-use">
             使い方
-          </a>
-          <a className="transition hover:text-cyan-200" href="/privacy">
+          </Link>
+          <Link className="transition hover:text-cyan-200" href="/privacy">
             Privacy
-          </a>
-          <a className="transition hover:text-cyan-200" href="/contact">
+          </Link>
+          <Link className="transition hover:text-cyan-200" href="/contact">
             Contact
-          </a>
+          </Link>
         </div>
       </nav>
       <div className="max-w-3xl">
